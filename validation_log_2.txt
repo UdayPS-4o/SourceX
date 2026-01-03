@@ -1,0 +1,105 @@
+
+╔═══════════════════════════════════════════╗
+║    SOURCEX BOT - FAST VERSION (run2)      ║
+║    Calculates lowest from inventory       ║
+║    Includes Commission + Validation       ║
+╚═══════════════════════════════════════════╝
+
+📦 Fetching inventory only (fast mode)...
+
+✅ Loaded session for Arsalan
+📦 Fetching inventory...
+   Found 1401 total items
+✅ Fetched 1401 items in 13810ms
+
+⏱️  Fetch completed in 13812ms
+
+🔍 Analyzing prices locally (with commissions)...
+
+📂 Loading validation data from C:\Users\udayps\Documents\codewar25\sourcex_bot\output\inventory-data.json...
+
+═══════════════════════════════════════════
+🧪 VALIDATION RESULTS (Match by Name+Size)
+═══════════════════════════════════════════
+   ✅ Matches:      1114
+   ❌ Mismatches:   43
+   ⚠️ Skipped:      42 (Not found in API data)
+   🎯 Accuracy:     96.28%
+═══════════════════════════════════════════
+
+🔍 Sample Mismatches:
+   • Chase B x Travis Scott x Air Jordan Jordan Jumpman Jack TR 'Black Night Silver' (UK10)
+     Error: False Lowest (API: Not Lowest)
+     Calc Listing Price: 33060 (Payout: 29000 + 14%)
+     Market Low: 33059
+
+   • Yeezy Slides Resin (UK8)
+     Error: False Lowest (API: Not Lowest)
+     Calc Listing Price: 9689 (Payout: 8499 + 14%)
+     Market Low: 9689
+
+   • New Balance 9060 Driftwood Castlerock (UK8)
+     Error: False Lowest (API: Not Lowest)
+     Calc Listing Price: 13680 (Payout: 12000 + 14%)
+     Market Low: 16530
+
+   • Air Jordan 1 Low 'Black Rust Pink' (UK7)
+     Error: False Lowest (API: Not Lowest)
+     Calc Listing Price: 9462 (Payout: 8300 + 14%)
+     Market Low: 9690
+
+   • Cloud X 4 Ivory/Black On Running (UK8.5)
+     Error: False Lowest (API: Not Lowest)
+     Calc Listing Price: 18696 (Payout: 16400 + 14%)
+     Market Low: 18798
+
+
+═══════════════════════════════════════════
+📊 ANALYSIS RESULTS (Calculated Locally)
+═══════════════════════════════════════════
+   📦 Total Inventory:  1401
+   📋 Listed Items:     1199
+   ---------------------------------------
+   ⬇️  Lowest Price:    883 (74%)
+   ⬆️  Not Lowest:      316
+   ∑  Sum Check:       1199 (Vs Listed: 1199) -> OK
+   ---------------------------------------
+   💰 Total Payout Val: ₹1,68,70,181.6
+═══════════════════════════════════════════
+
+🔴 TOP 5 OVERPRICED (Need Price Drop):
+
+   1. Gucci Tassel GG Canvas Loafers Black Ebony
+      Size: UK10
+      Payout: ₹100000 (Comm: 14%)
+      List Price: ₹114000 → Market Low: ₹83999
+      Drop needed: ₹30001 (+35.72%)
+
+   2. Coach Nolita 19 In Signature Canvas Signature Canvas-Gold-Tan-Black
+      Size: UKGOLD/TAN/BLAK
+      Payout: ₹35000 (Comm: 14%)
+      List Price: ₹39900 → Market Low: ₹16871
+      Drop needed: ₹23029 (+136.5%)
+
+   3. Balenciaga Pool Slide Black White
+      Size: UK7
+      Payout: ₹52000 (Comm: 14%)
+      List Price: ₹59280 → Market Low: ₹38429
+      Drop needed: ₹20851 (+54.26%)
+
+   4. Hayley Wilson x Dunk Low SB 'Court Purple'
+      Size: UK7
+      Payout: ₹17116 (Comm: 14%)
+      List Price: ₹19512 → Market Low: ₹0
+      Drop needed: ₹19512 (+0%)
+
+   5. Adidas Harden Vol. 8 'Pioneer'
+      Size: UK12
+      Payout: ₹17000 (Comm: 14%)
+      List Price: ₹19380 → Market Low: ₹0
+      Drop needed: ₹19380 (+0%)
+💾 Data saved to C:\Users\udayps\Documents\codewar25\sourcex_bot\output\inventory-fast-v2.json
+
+⏱️  Total time: 14021ms
+
+✅ Done! Check output/inventory-fast-v2.json

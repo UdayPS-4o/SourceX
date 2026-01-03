@@ -1,0 +1,23 @@
+{
+    "name": "sourcex-bot",
+    "version": "1.0.0",
+    "description": "SourceX/Culture Circle API Client for inventory management",
+    "main": "src/index.js",
+    "scripts": {
+        "start": "node run.js",
+        "fetch": "node run.js",
+        "test": "node run.js"
+    },
+    "keywords": [
+        "sourcex",
+        "culture-circle",
+        "api",
+        "inventory",
+        "reseller"
+    ],
+    "author": "",
+    "license": "ISC",
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
