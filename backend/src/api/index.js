@@ -5,6 +5,10 @@
 const express = require('express');
 const cors = require('cors');
 const listingsRouter = require('./routes/listings');
+const dashboardRouter = require('./routes/dashboard');
+
+// Fix BigInt serialization for JSON
+BigInt.prototype.toJSON = function () { return this.toString() };
 
 const app = express();
 
@@ -13,6 +17,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/listings', listingsRouter);
+app.use('/api/dashboard', dashboardRouter);
 
 app.get('/health', (req, res) => res.send('OK'));
 

@@ -8,6 +8,7 @@
         "start": "node src/main.js server",
         "seed": "node src/main.js seed",
         "sync": "node src/main.js sync",
+        "monitor": "node src/main.js monitor",
         "db:push": "npx drizzle-kit push",
         "db:generate": "npx drizzle-kit generate",
         "db:studio": "npx drizzle-kit studio",

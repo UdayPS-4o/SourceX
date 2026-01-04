@@ -4,6 +4,10 @@
 
 console.log('[CLI] Starting...');
 require('dotenv').config();
+
+// Fix BigInt serialization for JSON
+BigInt.prototype.toJSON = function () { return this.toString() };
+
 console.log('[CLI] Loading modules...');
 
 try {
@@ -44,8 +48,35 @@ if (require.main === module) {
                     await closePool();
                     break;
 
+                case 'monitor':
+                    console.log('[Monitor] Starting continuous sync (Target: Every 60s)...');
+                    const TARGET_INTERVAL = 60000; // 1 minute
+
+                    while (true) {
+                        const start = Date.now();
+                        console.log(`\n[Monitor] ➤ Cycle starting at ${new Date().toLocaleTimeString()}`);
+
+                        try {
+                            const loopJob = new SourceXSyncJob();
+                            await loopJob.run();
+                        } catch (err) {
+                            console.error('[Monitor] ❌ Cycle failed:', err.message);
+                        }
+
+                        const duration = Date.now() - start;
+                        // Determine wait time: Target - Duration. 
+                        // If duration > Target, wait minimal buffer (e.g. 5s) to avoid choking CPU.
+                        const waitTime = Math.max(5000, TARGET_INTERVAL - duration);
+
+                        console.log(`[Monitor] Cycle took ${(duration / 1000).toFixed(1)}s. Waiting ${(waitTime / 1000).toFixed(1)}s...`);
+
+                        await new Promise(resolve => setTimeout(resolve, waitTime));
+                    }
+                    // unreachable
+                    break;
+
                 default:
-                    console.log('Usage: npm start [server|sync]');
+                    console.log('Usage: npm start [server|sync|monitor]');
                     process.exit(1);
             }
         } catch (e) {

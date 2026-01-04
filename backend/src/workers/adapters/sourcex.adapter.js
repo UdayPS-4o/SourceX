@@ -70,7 +70,7 @@ class SourceXAdapter {
             title: product?.title || 'Unknown Product',
             image: product?.images?.edges?.[0]?.node?.image || null,
             size: variant?.title || null,
-            price: item._isLowest ? String(variant?.lowestPrice) : null,
+            price: variant?.lowestPrice ? String(variant.lowestPrice) : null,
             stock: item.quantity,
             isLowest: item._isLowest === true,
             props: {

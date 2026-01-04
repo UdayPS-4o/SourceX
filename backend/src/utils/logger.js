@@ -20,8 +20,12 @@ function logSync(stats) {
         ...stats
     };
 
-    // Format: [ISO] [Platform] Raw:1000 | Ins:10 | Upd:5 | Unc:985 | Time:500ms
-    const line = `[${entry.timestamp}] [${entry.platform}] Raw:${entry.total} | Ins:${entry.inserted} | Upd:${entry.updated} | Unc:${entry.unchanged} | Time:${entry.duration}ms\n`;
+    let line = `[${entry.timestamp}] [${entry.platform}] Raw:${entry.total} | Ins:${entry.inserted} | Upd:${entry.updated} | Unc:${entry.unchanged} | Time:${entry.duration}ms`;
+
+    if (entry.warning) {
+        line += ` | ⚠️ ${entry.warning}`;
+    }
+    line += '\n';
 
     // Also save JSON line for parsing? simpler is better for now.
     fs.appendFileSync(LOG_FILE, line);

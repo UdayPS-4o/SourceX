@@ -66,13 +66,21 @@ class BaseSyncWorker {
 
             const duration = Date.now() - startTime;
 
+            // Partial fetch detection
+            let warning = null;
+            if (startCount > 0 && rawItems.length < startCount * 0.9) {
+                warning = `Partial fetch? Count dropped from ${startCount} to ${rawItems.length} (-${Math.round((1 - rawItems.length / startCount) * 100)}%)`;
+                console.warn(`[${this.adapter.platformName}] ⚠️ ${warning}`);
+            }
+
             const stats = {
                 platform: this.adapter.platformName,
                 total: rawItems.length,
                 inserted,
                 updated,
                 unchanged,
-                duration
+                duration,
+                warning
             };
 
             await this.updateStatus(platformId, 'idle');
@@ -110,17 +118,56 @@ class BaseSyncWorker {
         };
     }
 
-    // Helper: Bulk Upsert (MySQL)
+    // Helper: Bulk Upsert (MySQL) with History Logging
     async bulkUpsert(items) {
         if (items.length === 0) return { affected: 0 };
 
-        const chunkSize = 500; // Safe chunk size
+        const chunkSize = 500;
         let totalAffected = 0;
 
         for (let i = 0; i < items.length; i += chunkSize) {
             const chunk = items.slice(i, i + chunkSize);
+            const ids = chunk.map(l => l.id);
 
-            // Generate SQL manully for speed & ON DUPLICATE KEY UPDATE support
+            // Fetch existing listings for comparison
+            const [existing] = await pool.query(
+                `SELECT id, current_price, current_stock FROM listings WHERE id IN (${ids.join(',')})`
+            );
+            const existingMap = new Map(existing.map(e => [String(e.id), e]));
+
+            // Track changes for history
+            const priceChanges = [];
+            const stockChanges = [];
+
+            for (const item of chunk) {
+                const old = existingMap.get(String(item.id));
+                if (old) {
+                    // Compare price (handle decimals as strings)
+                    const oldPrice = old.current_price ? parseFloat(old.current_price) : null;
+                    const newPrice = item.currentPrice ? parseFloat(item.currentPrice) : null;
+                    if (oldPrice !== newPrice && newPrice !== null) {
+                        priceChanges.push({ listingId: item.id, price: newPrice });
+                    }
+
+                    // Compare stock
+                    const oldStock = old.current_stock;
+                    const newStock = item.currentStock;
+                    if (oldStock !== newStock && newStock !== null) {
+                        const changeType = newStock < oldStock ? 'sold' : (newStock > oldStock ? 'restock' : 'correction');
+                        stockChanges.push({ listingId: item.id, stock: newStock, changeType });
+                    }
+                } else {
+                    // New listing - log initial values
+                    if (item.currentPrice) {
+                        priceChanges.push({ listingId: item.id, price: parseFloat(item.currentPrice) });
+                    }
+                    if (item.currentStock !== null && item.currentStock !== undefined) {
+                        stockChanges.push({ listingId: item.id, stock: item.currentStock, changeType: 'initial' });
+                    }
+                }
+            }
+
+            // Perform upsert
             const values = chunk.map(l => `(
                 ${l.id}, ${l.platformId}, ${this.esc(l.productSku)}, ${this.esc(l.variantId)}, 
                 ${this.esc(l.productName)}, ${this.esc(l.imgUrl)}, ${this.esc(l.size)}, 
@@ -136,21 +183,30 @@ class BaseSyncWorker {
                     last_event_at, updated_at
                 ) VALUES ${values}
                 ON DUPLICATE KEY UPDATE
-                    updated_at = CASE 
-                        WHEN listings.current_price <=> VALUES(current_price) 
-                         AND listings.current_stock <=> VALUES(current_stock) 
-                         AND listings.cfb_1 <=> VALUES(cfb_1)
-                        THEN listings.updated_at 
-                        ELSE NOW() 
-                    END,
                     current_price = VALUES(current_price),
                     current_stock = VALUES(current_stock),
                     cfb_1 = VALUES(cfb_1),
-                    last_event_at = NOW()
+                    img_url = VALUES(img_url),
+                    last_event_at = NOW(),
+                    updated_at = NOW()
             `;
 
             const [res] = await pool.query(query);
             totalAffected += res.affectedRows;
+
+            // Log price history
+            if (priceChanges.length > 0) {
+                const priceValues = priceChanges.map(p => `(${p.listingId}, ${p.price}, NOW())`).join(',');
+                await pool.query(`INSERT INTO price_history (listing_id, price, recorded_at) VALUES ${priceValues}`);
+                console.log(`  [History] Logged ${priceChanges.length} price changes`);
+            }
+
+            // Log inventory history
+            if (stockChanges.length > 0) {
+                const stockValues = stockChanges.map(s => `(${s.listingId}, ${s.stock}, '${s.changeType}', NOW())`).join(',');
+                await pool.query(`INSERT INTO inventory_history (listing_id, stock, change_type, recorded_at) VALUES ${stockValues}`);
+                console.log(`  [History] Logged ${stockChanges.length} stock changes`);
+            }
         }
         return { affected: totalAffected };
     }

@@ -1,0 +1,14 @@
+Starting API Tests...
+
+Testing Health Check (/health)... Γ¥î Invalid JSON
+Testing Dashboard Stats (/api/dashboard/stats)... Γ£à OK
+Testing Dashboard Platforms (/api/dashboard/platforms)... Γ£à OK
+Testing Dashboard Logs (/api/dashboard/logs?limit=5)... Γ£à OK
+Testing Listings (Page 1) (/api/listings?page=1&limit=10)... Γ£à OK
+
+Checking Listings Data Structure...
+Γ£à Data array present
+Γä╣∩╕Å Sample Listing Platform: SourceX
+Γ£à Platform relation loaded
+
+Tests Completed. Failures: 1

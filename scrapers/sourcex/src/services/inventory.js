@@ -1,12 +1,37 @@
 /**
  * Inventory Service
- * Handles all inventory-related API calls with pagination
+ * Handles all inventory-related API calls with pagination and retry logic
  */
 
 const config = require('../config');
 const { request } = require('./api');
 const { MY_INVENTORY_QUERY, LOWEST_NOT_LOWEST_QUERY } = require('../graphql/queries');
 const { encodeCursor } = require('../utils/token');
+
+/**
+ * Sleep utility
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Retry a function with exponential backoff
+ */
+async function withRetry(fn, maxRetries = 3, baseDelay = 500) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastError = err;
+            if (attempt < maxRetries) {
+                const delay = baseDelay * attempt;
+                console.warn(`   ⚠️ Attempt ${attempt}/${maxRetries} failed, retrying in ${delay}ms...`);
+                await sleep(delay);
+            }
+        }
+    }
+    throw lastError;
+}
 
 /**
  * Default inventory filters
@@ -62,10 +87,10 @@ async function fetchAllInventory(filters = DEFAULT_FILTERS) {
         const cursor = encodeCursor(offset);
 
         pagePromises.push(
-            fetchInventoryPage(cursor, filters)
+            withRetry(() => fetchInventoryPage(cursor, filters))
                 .then(page => page.edges.map(e => e.node))
                 .catch(err => {
-                    console.error(`   ⚠️ Page ${i + 1} failed:`, err.message);
+                    console.error(`   ❌ Page ${i + 1} failed after retries:`, err.message);
                     return [];
                 })
         );
@@ -129,10 +154,10 @@ async function fetchAllLowestOrNotLowest(isLowest = true) {
         const cursor = encodeCursor(offset);
 
         pagePromises.push(
-            fetchLowestNotLowestPage(isLowest, cursor)
+            withRetry(() => fetchLowestNotLowestPage(isLowest, cursor))
                 .then(page => page.edges.map(e => e.node))
                 .catch(err => {
-                    console.error(`   ⚠️ Page ${i + 1} failed:`, err.message);
+                    console.error(`   ❌ Page ${i + 1} failed after retries:`, err.message);
                     return [];
                 })
         );
