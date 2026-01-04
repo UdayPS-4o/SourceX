@@ -10,7 +10,7 @@
  * - Saves to output/inventory-data.json
  */
 
-const sourcex = require('./src');
+const sourcex = require('./index');
 
 async function main() {
     console.log('');

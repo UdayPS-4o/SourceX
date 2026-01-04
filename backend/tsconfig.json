@@ -9,6 +9,7 @@
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
+        "allowJs": true,
         "declaration": true,
         "declarationMap": true,
         "outDir": "./dist",

@@ -2,7 +2,7 @@
     "name": "sourcex-bot",
     "version": "1.0.0",
     "description": "SourceX/Culture Circle API Client for inventory management",
-    "main": "src/index.js",
+    "main": "index.js",
     "scripts": {
         "start": "node run.js",
         "fetch": "node run.js",

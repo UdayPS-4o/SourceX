@@ -8,9 +8,9 @@
  * That's it! Auto-login and token refresh handled automatically.
  */
 
-const authService = require('./services/auth');
-const inventoryService = require('./services/inventory');
-const { saveOutput } = require('./utils/storage');
+const authService = require('./src/services/auth');
+const inventoryService = require('./src/services/inventory');
+const { saveOutput } = require('./src/utils/storage');
 
 // ============================================
 // MAIN API - Just call these methods

@@ -3,9 +3,9 @@
  * MySQL connection using mysql2 and drizzle-orm
  */
 
-import { drizzle } from 'drizzle-orm/mysql2';
-import mysql from 'mysql2/promise';
-import * as schema from './schema';
+const { drizzle } = require('drizzle-orm/mysql2');
+const mysql = require('mysql2/promise');
+const schema = require('./schema');
 
 // Pool configuration from environment
 const poolConfig = {
@@ -25,18 +25,12 @@ const poolConfig = {
 const pool = mysql.createPool(poolConfig);
 
 // Create Drizzle instance with schema
-export const db = drizzle(pool, { schema, mode: 'default' });
-
-// Export pool for manual operations if needed
-export { pool };
-
-// Export schema for convenience
-export * from './schema';
+const db = drizzle(pool, { schema, mode: 'default' });
 
 /**
  * Test database connection
  */
-export async function testConnection(): Promise<boolean> {
+async function testConnection() {
     try {
         const connection = await pool.getConnection();
         await connection.ping();
@@ -52,7 +46,15 @@ export async function testConnection(): Promise<boolean> {
 /**
  * Close connection pool
  */
-export async function closePool(): Promise<void> {
+async function closePool() {
     await pool.end();
     console.log('[MySQL] Pool closed');
 }
+
+module.exports = {
+    pool,
+    db,
+    testConnection,
+    closePool,
+    ...schema
+};

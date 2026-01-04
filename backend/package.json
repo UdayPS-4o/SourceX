@@ -2,16 +2,16 @@
     "name": "ecommerce-monitor-backend",
     "version": "1.0.0",
     "description": "Price/Inventory monitoring system with MySQL and Redis",
-    "main": "src/index.ts",
+    "main": "src/main.js",
     "scripts": {
-        "dev": "npx ts-node src/index.ts server",
-        "start": "npx ts-node src/index.ts server",
-        "seed": "npx ts-node src/index.ts seed",
-        "sync": "npx ts-node src/index.ts sync",
+        "dev": "node src/main.js server",
+        "start": "node src/main.js server",
+        "seed": "node src/main.js seed",
+        "sync": "node src/main.js sync",
         "db:push": "npx drizzle-kit push",
         "db:generate": "npx drizzle-kit generate",
         "db:studio": "npx drizzle-kit studio",
-        "test:connection": "npx ts-node src/test/connection-test.ts",
+        "test:connection": "node src/test/connection-test.js",
         "typecheck": "npx tsc --noEmit"
     },
     "keywords": [
@@ -34,6 +34,7 @@
     "devDependencies": {
         "@types/express": "^5.0.6",
         "@types/node": "^22.10.5",
-        "drizzle-kit": "^0.31.8"
+        "drizzle-kit": "^0.31.8",
+        "tsconfig-paths": "^4.2.0"
     }
 }

@@ -3,8 +3,8 @@
  * Verifies database connection
  */
 
-import 'dotenv/config';
-import { testConnection, closePool } from '../db';
+require('dotenv').config();
+const { testConnection, closePool } = require('../db');
 
 async function main() {
     console.log('=== Connection Test ===');

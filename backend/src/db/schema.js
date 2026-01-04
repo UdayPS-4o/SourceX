@@ -3,7 +3,7 @@
  * All database table definitions
  */
 
-import {
+const {
     mysqlTable,
     bigint,
     int,
@@ -17,13 +17,13 @@ import {
     json,
     uniqueIndex,
     index,
-} from 'drizzle-orm/mysql-core';
-import { relations } from 'drizzle-orm';
+} = require('drizzle-orm/mysql-core');
+const { relations } = require('drizzle-orm');
 
 // ============================================
 // PLATFORMS TABLE
 // ============================================
-export const platforms = mysqlTable('platforms', {
+const platforms = mysqlTable('platforms', {
     id: int('id').primaryKey().autoincrement(),
     name: varchar('name', { length: 50 }).notNull().unique(),
     baseUrl: varchar('base_url', { length: 255 }),
@@ -35,7 +35,7 @@ export const platforms = mysqlTable('platforms', {
 // ============================================
 // LISTINGS TABLE
 // ============================================
-export const listings = mysqlTable('listings', {
+const listings = mysqlTable('listings', {
     // Using explicit BigInt ID (decoded from SourceX base64)
     id: bigint('id', { mode: 'bigint' }).primaryKey(),
     platformId: int('platform_id').notNull().references(() => platforms.id),
@@ -72,7 +72,7 @@ export const listings = mysqlTable('listings', {
 // ============================================
 // PRICE HISTORY TABLE
 // ============================================
-export const priceHistory = mysqlTable('price_history', {
+const priceHistory = mysqlTable('price_history', {
     id: bigint('id', { mode: 'bigint' }).primaryKey().autoincrement(),
     listingId: bigint('listing_id', { mode: 'bigint' }).notNull().references(() => listings.id),
     price: decimal('price', { precision: 10, scale: 2 }).notNull(),
@@ -84,7 +84,7 @@ export const priceHistory = mysqlTable('price_history', {
 // ============================================
 // INVENTORY HISTORY TABLE
 // ============================================
-export const inventoryHistory = mysqlTable('inventory_history', {
+const inventoryHistory = mysqlTable('inventory_history', {
     id: bigint('id', { mode: 'bigint' }).primaryKey().autoincrement(),
     listingId: bigint('listing_id', { mode: 'bigint' }).notNull().references(() => listings.id),
     stock: int('stock').notNull(),
@@ -97,7 +97,7 @@ export const inventoryHistory = mysqlTable('inventory_history', {
 // ============================================
 // WORKER CONFIGS TABLE (NEW)
 // ============================================
-export const workerConfigs = mysqlTable('worker_configs', {
+const workerConfigs = mysqlTable('worker_configs', {
     id: int('id').primaryKey().autoincrement(),
     platformId: int('platform_id').notNull().references(() => platforms.id),
     method: varchar('method', { length: 100 }).notNull(),
@@ -114,12 +114,12 @@ export const workerConfigs = mysqlTable('worker_configs', {
 // ============================================
 // RELATIONS
 // ============================================
-export const platformsRelations = relations(platforms, ({ many }) => ({
+const platformsRelations = relations(platforms, ({ many }) => ({
     listings: many(listings),
     workerConfigs: many(workerConfigs),
 }));
 
-export const listingsRelations = relations(listings, ({ one, many }) => ({
+const listingsRelations = relations(listings, ({ one, many }) => ({
     platform: one(platforms, {
         fields: [listings.platformId],
         references: [platforms.id],
@@ -128,41 +128,36 @@ export const listingsRelations = relations(listings, ({ one, many }) => ({
     inventoryHistory: many(inventoryHistory),
 }));
 
-export const priceHistoryRelations = relations(priceHistory, ({ one }) => ({
+const priceHistoryRelations = relations(priceHistory, ({ one }) => ({
     listing: one(listings, {
         fields: [priceHistory.listingId],
         references: [listings.id],
     }),
 }));
 
-export const inventoryHistoryRelations = relations(inventoryHistory, ({ one }) => ({
+const inventoryHistoryRelations = relations(inventoryHistory, ({ one }) => ({
     listing: one(listings, {
         fields: [inventoryHistory.listingId],
         references: [listings.id],
     }),
 }));
 
-export const workerConfigsRelations = relations(workerConfigs, ({ one }) => ({
+const workerConfigsRelations = relations(workerConfigs, ({ one }) => ({
     platform: one(platforms, {
         fields: [workerConfigs.platformId],
         references: [platforms.id],
     }),
 }));
 
-// ============================================
-// TYPES
-// ============================================
-export type Platform = typeof platforms.$inferSelect;
-export type PlatformInsert = typeof platforms.$inferInsert;
-
-export type Listing = typeof listings.$inferSelect;
-export type ListingInsert = typeof listings.$inferInsert;
-
-export type PriceHistory = typeof priceHistory.$inferSelect;
-export type PriceHistoryInsert = typeof priceHistory.$inferInsert;
-
-export type InventoryHistory = typeof inventoryHistory.$inferSelect;
-export type InventoryHistoryInsert = typeof inventoryHistory.$inferInsert;
-
-export type WorkerConfig = typeof workerConfigs.$inferSelect;
-export type WorkerConfigInsert = typeof workerConfigs.$inferInsert;
+module.exports = {
+    platforms,
+    listings,
+    priceHistory,
+    inventoryHistory,
+    workerConfigs,
+    platformsRelations,
+    listingsRelations,
+    priceHistoryRelations,
+    inventoryHistoryRelations,
+    workerConfigsRelations,
+};

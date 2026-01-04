@@ -1,0 +1,28 @@
+/**
+ * Express Application Setup
+ */
+
+const express = require('express');
+const cors = require('cors');
+const listingsRouter = require('./routes/listings');
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+// Routes
+app.use('/api/listings', listingsRouter);
+
+app.get('/health', (req, res) => res.send('OK'));
+
+function startServer(port) {
+    app.listen(port, () => {
+        console.log(`[API] Server running on http://localhost:${port}`);
+    });
+}
+
+module.exports = {
+    app,
+    startServer
+};
