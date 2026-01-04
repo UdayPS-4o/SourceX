@@ -1,0 +1,6 @@
+# Backend - Dependencies & Artifacts
+
+node_modules/
+dist/
+.env
+*.log

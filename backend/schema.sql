@@ -1,3 +1,10 @@
+-- MySQL database name:u363665699_monitors
+-- MySQL username:u363665699_monitors
+-- Password: $Ik&9b>YbHw8
+
+-- Our MySQL server hostname is: srv1403.hstgr.io or you can use this IP as your hostname: 193.203.184.85
+
+
 -- 1. Create the Database
 CREATE DATABASE IF NOT EXISTS ecommerce_monitor;
 USE ecommerce_monitor;
