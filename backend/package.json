@@ -5,7 +5,7 @@
     "main": "src/main.js",
     "scripts": {
         "dev": "node src/main.js server",
-        "start": "node src/main.js server",
+        "start": "node src/main.js",
         "seed": "node src/main.js seed",
         "sync": "node src/main.js sync",
         "monitor": "node src/main.js monitor",
