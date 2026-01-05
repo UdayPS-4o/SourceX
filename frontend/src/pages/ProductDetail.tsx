@@ -3,10 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
 import { api, getListingHistory } from '../lib/api';
 import { formatCurrency, formatDate, formatTimeIST, cn } from '../lib/utils';
-import { ArrowLeft, BoxIcon, TrendingUp, Package, Tag, Calendar, Check, Save } from 'lucide-react';
+import { ArrowLeft, BoxIcon, TrendingUp, Package, Tag, Calendar, Check } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useMemo, useState, useEffect } from 'react';
-import { type Column, DataTable } from '../components/ui/DataTable';
+import { DataTable } from '../components/ui/DataTable';
 
 interface PriceHistoryItem {
     id?: string | number;

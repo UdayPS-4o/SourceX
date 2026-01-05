@@ -231,7 +231,7 @@ export function ActivityPage() {
                 data={filteredLogs}
                 columns={columns}
                 isLoading={isLoading}
-                onSort={(key, dir) => handleSort(key as SortKey)}
+                onSort={(key) => handleSort(key as SortKey)}
                 sortKey={sortKey}
                 sortDir={sortDir}
                 search={search}

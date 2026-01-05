@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../components/layout/Layout';
 import { getListings } from '../lib/api';
 // formatDate converts UTC to IST
-import { formatCurrency, formatDate, formatTimeIST, cn } from '../lib/utils';
+import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { BoxIcon, ChevronDown } from 'lucide-react';
 import { type Column, DataTable } from '../components/ui/DataTable';
 import { useState, useMemo, useEffect } from 'react';
@@ -39,7 +39,7 @@ export function Products() {
         setPage(1);
     }, [debouncedSearch, statusFilter]);
 
-    const { data, isLoading, isFetching } = useQuery({
+    const { data, isLoading } = useQuery({
         queryKey: ['listings', page, debouncedSearch, statusFilter],
         queryFn: () => getListings(page, 50, debouncedSearch, statusFilter)
     });

@@ -2,7 +2,7 @@
 import React from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Search, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { useNavigate } from 'react-router-dom';
+
 
 export type Column<T> = {
     key: string;
@@ -163,7 +163,7 @@ export function DataTable<T extends { id?: string | number }>({
                         {isLoading ? (
                             Array.from({ length: 8 }).map((_, i) => (
                                 <tr key={i} className="animate-pulse">
-                                    {columns.map((col, j) => (
+                                    {columns.map((_, j) => (
                                         <td key={j} className="px-6 py-4">
                                             <div className="h-5 bg-gray-100 rounded w-full max-w-[80%] mx-auto opacity-60"></div>
                                         </td>
