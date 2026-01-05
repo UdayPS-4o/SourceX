@@ -1,0 +1,226 @@
+/**
+ * Discord Webhook Service
+ * Sends notifications to Discord for price changes and mutations
+ */
+
+const WEBHOOKS = {
+    // Price changes incoming (detected from sync)
+    PRICE_CHANGES: 'https://discord.com/api/webhooks/1457564612596596787/0gOi52lhggjlslKZ3ILzXhNkAMmzPuUUHWwdMWpyJBVt0ua6GkLiARemZwlh8z-xUMCa',
+
+    // Mutations (payout writes by our system)
+    MUTATIONS: 'https://discord.com/api/webhooks/1457564760223780875/touJpDIg6fThCCIHE_xQ6u2otNZqQTl8j9-GFyEacIoTs_uPg9_BqH80ZqF9ezXA0Umq'
+};
+
+/**
+ * Send a message to Discord webhook
+ */
+async function sendWebhook(webhookUrl, payload) {
+    try {
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            console.error(`[Discord] Webhook failed: ${response.status}`);
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.error(`[Discord] Webhook error:`, error.message);
+        return false;
+    }
+}
+
+/**
+ * Send price change notification
+ * @param {Object} data - Price change data
+ */
+async function notifyPriceChange(data) {
+    const { productName, productSku, listingId, oldPrice, newPrice, size } = data;
+
+    const priceChange = newPrice - oldPrice;
+    const changePercent = ((priceChange / oldPrice) * 100).toFixed(1);
+    const isIncrease = priceChange > 0;
+
+    const embed = {
+        title: isIncrease ? '📈 Price Increased' : '📉 Price Decreased',
+        color: isIncrease ? 0xFF5555 : 0x55FF55, // Red for increase, Green for decrease
+        fields: [
+            {
+                name: '📦 Product',
+                value: productName.substring(0, 100),
+                inline: false
+            },
+            {
+                name: '🏷️ SKU',
+                value: `\`${productSku}\``,
+                inline: true
+            },
+            {
+                name: '📐 Size',
+                value: size || 'N/A',
+                inline: true
+            },
+            {
+                name: '🔗 ID',
+                value: `#${listingId}`,
+                inline: true
+            },
+            {
+                name: '💰 Old Price',
+                value: `₹${oldPrice.toLocaleString()}`,
+                inline: true
+            },
+            {
+                name: '💵 New Price',
+                value: `₹${newPrice.toLocaleString()}`,
+                inline: true
+            },
+            {
+                name: '📊 Change',
+                value: `${isIncrease ? '+' : ''}₹${priceChange.toLocaleString()} (${isIncrease ? '+' : ''}${changePercent}%)`,
+                inline: true
+            }
+        ],
+        timestamp: new Date().toISOString(),
+        footer: {
+            text: 'SourceX Price Monitor'
+        }
+    };
+
+    return sendWebhook(WEBHOOKS.PRICE_CHANGES, { embeds: [embed] });
+}
+
+/**
+ * Send price mutation notification (our payout writes)
+ * @param {Object} data - Mutation data
+ */
+async function notifyMutation(data) {
+    const {
+        productName,
+        productSku,
+        listingId,
+        oldPayoutPrice,
+        newPayoutPrice,
+        newCurrentPrice,
+        triggerType,
+        triggerReason,
+        success,
+        size
+    } = data;
+
+    const isAutoUndercut = triggerType === 'auto_undercut';
+
+    const embed = {
+        title: success
+            ? (isAutoUndercut ? '⚡ Auto-Undercut Executed' : '✏️ Manual Price Update')
+            : '❌ Mutation Failed',
+        color: success ? (isAutoUndercut ? 0x9B59B6 : 0x3498DB) : 0xFF0000, // Purple for auto, Blue for manual
+        fields: [
+            {
+                name: '📦 Product',
+                value: productName?.substring(0, 100) || 'Unknown',
+                inline: false
+            },
+            {
+                name: '🏷️ SKU',
+                value: `\`${productSku || 'N/A'}\``,
+                inline: true
+            },
+            {
+                name: '📐 Size',
+                value: size || 'N/A',
+                inline: true
+            },
+            {
+                name: '🔗 ID',
+                value: `#${listingId}`,
+                inline: true
+            },
+            {
+                name: '💸 Old Payout',
+                value: oldPayoutPrice ? `₹${oldPayoutPrice.toLocaleString()}` : 'N/A',
+                inline: true
+            },
+            {
+                name: '💰 New Payout',
+                value: `₹${newPayoutPrice.toLocaleString()}`,
+                inline: true
+            },
+            {
+                name: '🏪 New Price',
+                value: `₹${newCurrentPrice.toLocaleString()}`,
+                inline: true
+            }
+        ],
+        timestamp: new Date().toISOString(),
+        footer: {
+            text: isAutoUndercut ? 'Auto-Undercut System' : 'Manual Update'
+        }
+    };
+
+    // Add trigger reason if available
+    if (triggerReason) {
+        embed.fields.push({
+            name: '📝 Reason',
+            value: triggerReason,
+            inline: false
+        });
+    }
+
+    return sendWebhook(WEBHOOKS.MUTATIONS, { embeds: [embed] });
+}
+
+/**
+ * Send batch price changes summary
+ * @param {Array} changes - Array of price changes
+ */
+async function notifyPriceChangesSummary(changes) {
+    if (!changes || changes.length === 0) return;
+
+    // Group by increase/decrease
+    const increases = changes.filter(c => c.newPrice > c.oldPrice);
+    const decreases = changes.filter(c => c.newPrice < c.oldPrice);
+
+    const embed = {
+        title: `📊 Price Changes Summary (${changes.length} items)`,
+        color: 0x5865F2, // Discord blurple
+        fields: [
+            {
+                name: '📈 Price Increases',
+                value: increases.length > 0
+                    ? increases.slice(0, 5).map(c =>
+                        `• ${c.productName.substring(0, 30)}... ₹${c.oldPrice} → ₹${c.newPrice}`
+                    ).join('\n') + (increases.length > 5 ? `\n... and ${increases.length - 5} more` : '')
+                    : 'None',
+                inline: false
+            },
+            {
+                name: '📉 Price Decreases',
+                value: decreases.length > 0
+                    ? decreases.slice(0, 5).map(c =>
+                        `• ${c.productName.substring(0, 30)}... ₹${c.oldPrice} → ₹${c.newPrice}`
+                    ).join('\n') + (decreases.length > 5 ? `\n... and ${decreases.length - 5} more` : '')
+                    : 'None',
+                inline: false
+            }
+        ],
+        timestamp: new Date().toISOString(),
+        footer: {
+            text: 'SourceX Price Monitor'
+        }
+    };
+
+    return sendWebhook(WEBHOOKS.PRICE_CHANGES, { embeds: [embed] });
+}
+
+module.exports = {
+    notifyPriceChange,
+    notifyMutation,
+    notifyPriceChangesSummary,
+    sendWebhook,
+    WEBHOOKS
+};

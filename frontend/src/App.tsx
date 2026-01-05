@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Products } from './pages/Products';
 import { ProductDetail } from './pages/ProductDetail';
 import { ActivityPage } from './pages/Activity';
+import { LogsPage } from './pages/Logs';
 import { Layout } from './components/layout/Layout';
 
 function PlaceholderPage({ title }: { title: string }) {
@@ -26,6 +27,7 @@ function App() {
           <Route path="/products" element={<Products />} />
           <Route path="/products/:id" element={<ProductDetail />} />
           <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/logs" element={<LogsPage />} />
           <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

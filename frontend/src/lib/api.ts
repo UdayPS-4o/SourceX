@@ -1,8 +1,11 @@
 import axios from 'axios';
 import { QueryClient } from '@tanstack/react-query';
 
+// Use env var or default to local for safety
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
 export const api = axios.create({
-    baseURL: 'http://localhost:3000/api', // Make sure this matches your backend
+    baseURL: BASE_URL,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -32,12 +35,19 @@ export const getLogs = async (limit = 20) => {
     return response.data;
 };
 
-export const getListings = async (page = 1, limit = 50) => {
-    const response = await api.get(`/listings?page=${page}&limit=${limit}`);
+export const getListings = async (page = 1, limit = 50, search = '', status = 'all') => {
+    const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+    });
+    if (search) params.append('search', search);
+    if (status !== 'all') params.append('status', status);
+
+    const response = await api.get(`/listings?${params.toString()}`);
     return response.data;
 };
 
-export const getListingHistory = async (id: number) => {
+export const getListingHistory = async (id: number | string) => {
     const response = await api.get(`/listings/${id}/history`);
     return response.data;
 };

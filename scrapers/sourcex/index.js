@@ -10,6 +10,7 @@
 
 const authService = require('./src/services/auth');
 const inventoryService = require('./src/services/inventory');
+const pricingService = require('./src/services/pricing');
 const { saveOutput } = require('./src/utils/storage');
 
 // ============================================
@@ -90,6 +91,26 @@ function isAuthenticated() {
     return authService.isAuthenticated();
 }
 
+/**
+ * Update reseller payout price for platform listings
+ * @param {string[]} platformListingIds - Array of base64 encoded platform listing IDs
+ * @param {number} newPayoutPrice - New payout price to set
+ */
+async function updatePayoutPrice(platformListingIds, newPayoutPrice) {
+    await init();
+    return pricingService.updatePayoutPrice(platformListingIds, newPayoutPrice);
+}
+
+/**
+ * Update payout price using JSON string of IDs (from DB)
+ * @param {string} platformListingIdsJson - JSON string of platform listing IDs
+ * @param {number} newPayoutPrice - New payout price
+ */
+async function updateInventoryPayoutPrice(platformListingIdsJson, newPayoutPrice) {
+    await init();
+    return pricingService.updateInventoryPayoutPrice(platformListingIdsJson, newPayoutPrice);
+}
+
 // Export clean API
 module.exports = {
     // Main methods
@@ -103,7 +124,13 @@ module.exports = {
     getUser,
     isAuthenticated,
 
+    // Pricing methods
+    updatePayoutPrice,
+    updateInventoryPayoutPrice,
+
     // Services for advanced use
     auth: authService,
-    inventory: inventoryService
+    inventory: inventoryService,
+    pricing: pricingService
 };
+

@@ -36,7 +36,7 @@ if (require.main === module) {
 
             switch (command) {
                 case 'server':
-                    startServer(3000);
+                    startServer(process.env.PORT || 3000);
                     break;
 
                 case 'sync':
@@ -50,22 +50,40 @@ if (require.main === module) {
 
                 case 'monitor':
                     console.log('[Monitor] Starting continuous sync (Target: Every 60s)...');
+                    console.log('[Monitor] Auto-undercut will run every 5 minutes');
                     const TARGET_INTERVAL = 60000; // 1 minute
+                    const AUTO_UNDERCUT_INTERVAL = 5; // Every 5 sync cycles = 5 minutes
+                    let cycleCount = 0;
+
+                    // Import AutoUndercutJob
+                    const { AutoUndercutJob } = require('./workers/jobs/auto-undercut.job');
+                    const autoUndercutJob = new AutoUndercutJob();
 
                     while (true) {
                         const start = Date.now();
-                        console.log(`\n[Monitor] ➤ Cycle starting at ${new Date().toLocaleTimeString()}`);
+                        cycleCount++;
+                        console.log(`\n[Monitor] ➤ Cycle ${cycleCount} starting at ${new Date().toLocaleTimeString()}`);
 
                         try {
+                            // 1. Run regular sync
                             const loopJob = new SourceXSyncJob();
                             await loopJob.run();
+
+                            // 2. Run auto-undercut every 5 cycles (5 minutes)
+                            if (cycleCount % AUTO_UNDERCUT_INTERVAL === 0) {
+                                console.log('\n[Monitor] 🔄 Running auto-undercut check...');
+                                try {
+                                    const undercutResult = await autoUndercutJob.run();
+                                    console.log(`[Monitor] Auto-undercut: ${undercutResult.undercut} prices updated`);
+                                } catch (undercutErr) {
+                                    console.error('[Monitor] ❌ Auto-undercut failed:', undercutErr.message);
+                                }
+                            }
                         } catch (err) {
                             console.error('[Monitor] ❌ Cycle failed:', err.message);
                         }
 
                         const duration = Date.now() - start;
-                        // Determine wait time: Target - Duration. 
-                        // If duration > Target, wait minimal buffer (e.g. 5s) to avoid choking CPU.
                         const waitTime = Math.max(5000, TARGET_INTERVAL - duration);
 
                         console.log(`[Monitor] Cycle took ${(duration / 1000).toFixed(1)}s. Waiting ${(waitTime / 1000).toFixed(1)}s...`);

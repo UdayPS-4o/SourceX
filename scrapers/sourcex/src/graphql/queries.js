@@ -279,9 +279,60 @@ const LOWEST_NOT_LOWEST_QUERY = `query LowestAndNotLowest($isLowest: Boolean = t
     }
 }`;
 
+const UPDATE_PLATFORM_LISTINGS_MUTATION = `mutation MyMutation($updates: [PlatformListingUpdateInput!]!) {
+    updateMultiplePlatformListings(updates: $updates) {
+        containerLocation
+        createdAt
+        id
+        isOnline
+        isActive
+        marketplaceListingId
+        platform
+        resellerPayoutPriceSx
+        resellerPayoutPrice
+        status
+        trackingId
+        trackingLink
+        trackingProvider
+        updatedAt
+        marketplace {
+            additionalDetails
+            city
+            address
+            commissionPercentage
+            country
+            id
+            marketplaceUrl
+            phone
+            miscellaneousCharges
+            shippingCharges
+            title
+        }
+    }
+}`;
+
+const GET_INVENTORY_DETAILS_QUERY = `query GetInventoryDetails($id: ID!) {
+    node(id: $id) {
+        ... on MyInventoryType {
+            id
+            platformListings {
+                edges {
+                    node {
+                        id
+                        resellerPayoutPrice
+                        isActive
+                    }
+                }
+            }
+        }
+    }
+}`;
+
 module.exports = {
     LOGIN_MUTATION,
     REFRESH_TOKEN_MUTATION,
     MY_INVENTORY_QUERY,
-    LOWEST_NOT_LOWEST_QUERY
+    LOWEST_NOT_LOWEST_QUERY,
+    UPDATE_PLATFORM_LISTINGS_MUTATION,
+    GET_INVENTORY_DETAILS_QUERY
 };

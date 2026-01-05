@@ -5,7 +5,7 @@
 
 const config = require('../config');
 const { request } = require('./api');
-const { MY_INVENTORY_QUERY, LOWEST_NOT_LOWEST_QUERY } = require('../graphql/queries');
+const { MY_INVENTORY_QUERY, LOWEST_NOT_LOWEST_QUERY, UPDATE_PLATFORM_LISTINGS_MUTATION, GET_INVENTORY_DETAILS_QUERY } = require('../graphql/queries');
 const { encodeCursor } = require('../utils/token');
 
 /**
@@ -260,11 +260,47 @@ async function fetchAll() {
     return result;
 }
 
+/**
+ * Update payout price for multiple platform listings
+ * @param {Array<string>} listingIds - List of PlatformListing IDs
+ * @param {number} newPrice - New payout price
+ */
+async function updatePayoutPrice(listingIds, newPrice) {
+    if (!listingIds || listingIds.length === 0) return [];
+
+    console.log(`💰 Updating price to ${newPrice} for ${listingIds.length} listings...`);
+
+    const response = await request({
+        operationName: 'UpdateMultiplePlatformListings',
+        variables: {
+            platformListingIds: listingIds,
+            resellerPayoutPrice: parseFloat(newPrice)
+        },
+        query: UPDATE_PLATFORM_LISTINGS_MUTATION
+    });
+
+    return response.data.updateMultiplePlatformListings;
+}
+
+/**
+ * Fetch a single inventory item by ID to get its details (inc. platform listings)
+ */
+async function fetchInventoryItem(id) {
+    const response = await request({
+        operationName: 'GetInventoryDetails',
+        variables: { id },
+        query: GET_INVENTORY_DETAILS_QUERY
+    });
+    return response.data.node;
+}
+
 module.exports = {
     fetchInventoryPage,
     fetchAllInventory,
     fetchLowestNotLowestPage,
     fetchAllLowestOrNotLowest,
     fetchLowestAndNotLowest,
-    fetchAll
+    fetchAll,
+    updatePayoutPrice,
+    fetchInventoryItem
 };

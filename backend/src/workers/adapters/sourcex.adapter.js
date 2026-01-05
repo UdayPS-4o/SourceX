@@ -29,7 +29,7 @@ class SourceXAdapter {
             e => e.node.marketplace.title === 'culturecircle'
         );
         return {
-            payout: cc?.node.resellerPayoutPrice,
+            payout: cc?.node.resellerPayoutPrice ? Math.round(Number(cc.node.resellerPayoutPrice)) : undefined,
             commission: cc ? Math.round(cc.node.marketplace.commissionPercentage * 100) : undefined // 14% -> 1400
         };
     }
@@ -63,6 +63,17 @@ class SourceXAdapter {
         const product = variant?.product;
         const ccData = this.getCultureCircleData(item);
 
+        // Logic for stock status
+        let stockValue = item.quantity;
+        if (item.isSold === true) {
+            stockValue = 0;
+        } else if (item.isListed === false) {
+            stockValue = -1; // Represents inactive/delisted but not sold
+        }
+
+        // Extract all platform listing IDs for price update mutations
+        const platformListingIds = item.platformListings?.edges?.map(e => e.node.id) || [];
+
         return {
             externalId: this.decodeId(item.id),
             sku: product?.skuId || 'UNKNOWN',
@@ -71,8 +82,9 @@ class SourceXAdapter {
             image: product?.images?.edges?.[0]?.node?.image || null,
             size: variant?.title || null,
             price: variant?.lowestPrice ? String(variant.lowestPrice) : null,
-            stock: item.quantity,
+            stock: stockValue,
             isLowest: item._isLowest === true,
+            platformListingIds: JSON.stringify(platformListingIds), // Store as JSON string
             props: {
                 brand: product?.brandName,
                 payout: ccData.payout,

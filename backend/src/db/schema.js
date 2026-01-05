@@ -60,6 +60,13 @@ const listings = mysqlTable('listings', {
     cfi2: int('cfi_2'),                              // Commission Percentage (x100)
     cfi3: int('cfi_3'),                              // Extra int
 
+    // Platform Listing IDs (JSON array of base64 encoded IDs for price updates)
+    platformListingIds: text('platform_listing_ids'),
+
+    // Auto-Undercut Settings
+    autoUndercutEnabled: boolean('auto_undercut_enabled').default(false),
+    stopLossPrice: int('stop_loss_price'),           // Minimum payout price (won't go below this)
+
     // Time Tracking
     lastEventAt: timestamp('last_event_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
@@ -67,6 +74,7 @@ const listings = mysqlTable('listings', {
     listingIdx: index('idx_listing').on(table.platformId, table.productSku, table.variantId),
     priceIdx: index('idx_price').on(table.currentPrice),
     isLowestIdx: index('idx_is_lowest').on(table.cfb1),
+    autoUndercutIdx: index('idx_auto_undercut').on(table.autoUndercutEnabled),
 }));
 
 // ============================================
@@ -112,6 +120,36 @@ const workerConfigs = mysqlTable('worker_configs', {
 });
 
 // ============================================
+// PRICE MUTATIONS TABLE (Our price changes)
+// ============================================
+const priceMutations = mysqlTable('price_mutations', {
+    id: bigint('id', { mode: 'bigint' }).primaryKey().autoincrement(),
+    listingId: bigint('listing_id', { mode: 'bigint' }).notNull().references(() => listings.id),
+
+    // Price info
+    oldPayoutPrice: int('old_payout_price'),
+    newPayoutPrice: int('new_payout_price').notNull(),
+    oldCurrentPrice: int('old_current_price'),
+    newCurrentPrice: int('new_current_price').notNull(),
+
+    // Context
+    triggerType: varchar('trigger_type', { length: 50 }).notNull(), // 'manual', 'auto_undercut'
+    triggerReason: text('trigger_reason'),                          // e.g., "Competitor undercut to 14200"
+    lowestPriceAtTrigger: int('lowest_price_at_trigger'),           // What was lowest when we triggered
+
+    // Status
+    success: boolean('success').default(false),
+    errorMessage: text('error_message'),
+
+    // Timing
+    createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+    listingIdx: index('idx_mutation_listing').on(table.listingId),
+    createdAtIdx: index('idx_mutation_created').on(table.createdAt),
+    triggerTypeIdx: index('idx_mutation_trigger').on(table.triggerType),
+}));
+
+// ============================================
 // RELATIONS
 // ============================================
 const platformsRelations = relations(platforms, ({ many }) => ({
@@ -155,6 +193,7 @@ module.exports = {
     priceHistory,
     inventoryHistory,
     workerConfigs,
+    priceMutations,
     platformsRelations,
     listingsRelations,
     priceHistoryRelations,

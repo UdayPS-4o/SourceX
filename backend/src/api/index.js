@@ -15,9 +15,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const logsRouter = require('./routes/logs');
+
 // Routes
 app.use('/api/listings', listingsRouter);
 app.use('/api/dashboard', dashboardRouter);
+app.use('/api/logs', logsRouter);
 
 app.get('/health', (req, res) => res.send('OK'));
 

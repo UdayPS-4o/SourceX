@@ -14,17 +14,24 @@ class SourceXSyncJob extends BaseSyncWorker {
 
     async fetchData() {
         // Dynamic import of the existing scraper logic
-        // We reuse the existing logic to avoid rewriting auth/graphql handling
         const scraperPath = path.resolve(__dirname, '../../../../scrapers/sourcex');
         const scraper = require(scraperPath);
 
-        const { lowest, notLowest } = await scraper.fetchLowestAndNotLowest();
+        console.log('[SourceX] Fetching ALL inventory data...');
 
-        // Add flag (scraper returns raw arrays)
-        lowest.forEach(i => i._isLowest = true);
-        notLowest.forEach(i => i._isLowest = false);
+        // fetchAll() gets inventory + lowest/not-lowest status + platform IDs
+        const { inventory, summary } = await scraper.fetchAll();
 
-        return [...lowest, ...notLowest];
+        console.log('═══════════════════════════════════════════');
+        console.log('📊 DATA STATS');
+        console.log('═══════════════════════════════════════════');
+        console.log(`   📦 Total Inventory: ${summary.totalInventory}`);
+        console.log(`   ✅  _isLowest=true:  ${summary.lowestCount}`);
+        console.log(`   ❌  _isLowest=false: ${summary.notLowestCount}`);
+        console.log(`   ❓  _isLowest=undef: ${summary.unknownCount}`);
+        console.log('═══════════════════════════════════════════');
+
+        return inventory;
     }
 }
 

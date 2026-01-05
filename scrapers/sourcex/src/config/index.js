@@ -9,10 +9,10 @@ module.exports = {
     // API Configuration
     API_URL: 'https://api.culture-circle.com/graphql',
 
-    // Credentials (hardcoded for auto-login)
+    // Credentials (from environment variables)
     CREDENTIALS: {
-        EMAIL: 'arsalana501@gmail.com',
-        PASSWORD: 'Ahmed@786'
+        EMAIL: process.env.SOURCEX_EMAIL,
+        PASSWORD: process.env.SOURCEX_PASSWORD
     },
 
     // File paths

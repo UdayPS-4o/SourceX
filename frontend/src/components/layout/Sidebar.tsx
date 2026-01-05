@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingBag, Settings, Activity } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Settings, Activity, Terminal } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 
@@ -6,6 +6,7 @@ const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: ShoppingBag, label: 'Products', path: '/products' },
     { icon: Activity, label: 'Activity', path: '/activity' },
+    { icon: Terminal, label: 'Logs', path: '/logs' },
     { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 

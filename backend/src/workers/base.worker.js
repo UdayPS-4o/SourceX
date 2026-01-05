@@ -7,6 +7,7 @@ const { db, pool } = require('../db');
 const { listings, platforms } = require('../db/schema');
 const { eq } = require('drizzle-orm');
 const { logSync } = require('../utils/logger');
+const discord = require('../services/discord');
 
 class BaseSyncWorker {
     constructor(adapter) {
@@ -113,6 +114,7 @@ class BaseSyncWorker {
             cft1: std.props.brand || null,
             cfi1: std.props.payout || null,
             cfi2: std.props.commission || null,
+            platformListingIds: std.platformListingIds || null,
             updatedAt: new Date(),
             lastEventAt: new Date(),
         };
@@ -129,15 +131,16 @@ class BaseSyncWorker {
             const chunk = items.slice(i, i + chunkSize);
             const ids = chunk.map(l => l.id);
 
-            // Fetch existing listings for comparison
+            // Fetch existing listings for comparison (including cfb_1 and cfi_1)
             const [existing] = await pool.query(
-                `SELECT id, current_price, current_stock FROM listings WHERE id IN (${ids.join(',')})`
+                `SELECT id, current_price, current_stock, cfb_1, cfi_1 FROM listings WHERE id IN (${ids.join(',')})`
             );
             const existingMap = new Map(existing.map(e => [String(e.id), e]));
 
             // Track changes for history
             const priceChanges = [];
             const stockChanges = [];
+            const customFieldChanges = []; // Track cfb_1 and cfi_1 changes
 
             for (const item of chunk) {
                 const old = existingMap.get(String(item.id));
@@ -156,6 +159,39 @@ class BaseSyncWorker {
                         const changeType = newStock < oldStock ? 'sold' : (newStock > oldStock ? 'restock' : 'correction');
                         stockChanges.push({ listingId: item.id, stock: newStock, changeType });
                     }
+
+                    // Compare cfb_1 (isLowest) - boolean field
+                    const oldIsLowest = old.cfb_1 === 1 || old.cfb_1 === true;
+                    const newIsLowest = item.cfb1 === true;
+                    if (oldIsLowest !== newIsLowest) {
+                        customFieldChanges.push({
+                            listingId: item.id,
+                            fieldName: 'cfb_1',
+                            fieldType: 'boolean',
+                            oldValue: oldIsLowest ? 'true' : 'false',
+                            newValue: newIsLowest ? 'true' : 'false',
+                            isBooleanToggle: true
+                        });
+                    }
+
+                    // Compare cfi_1 (payout) - integer field
+                    const oldPayout = old.cfi_1;
+                    const newPayout = item.cfi1;
+
+                    // Normalize for comparison (handle "100" vs 100)
+                    const oldPayoutStr = (oldPayout === null || oldPayout === undefined) ? '' : String(oldPayout);
+                    const newPayoutStr = (newPayout === null || newPayout === undefined) ? '' : String(newPayout);
+
+                    if (oldPayoutStr !== newPayoutStr && newPayout !== null && newPayout !== undefined) {
+                        customFieldChanges.push({
+                            listingId: item.id,
+                            fieldName: 'cfi_1',
+                            fieldType: 'integer',
+                            oldValue: oldPayout !== null ? String(oldPayout) : null,
+                            newValue: String(newPayout),
+                            isBooleanToggle: false
+                        });
+                    }
                 } else {
                     // New listing - log initial values
                     if (item.currentPrice) {
@@ -163,6 +199,27 @@ class BaseSyncWorker {
                     }
                     if (item.currentStock !== null && item.currentStock !== undefined) {
                         stockChanges.push({ listingId: item.id, stock: item.currentStock, changeType: 'initial' });
+                    }
+                    // Log initial custom field values
+                    if (item.cfb1 !== null && item.cfb1 !== undefined) {
+                        customFieldChanges.push({
+                            listingId: item.id,
+                            fieldName: 'cfb_1',
+                            fieldType: 'boolean',
+                            oldValue: null,
+                            newValue: item.cfb1 ? 'true' : 'false',
+                            isBooleanToggle: false
+                        });
+                    }
+                    if (item.cfi1 !== null && item.cfi1 !== undefined) {
+                        customFieldChanges.push({
+                            listingId: item.id,
+                            fieldName: 'cfi_1',
+                            fieldType: 'integer',
+                            oldValue: null,
+                            newValue: String(item.cfi1),
+                            isBooleanToggle: false
+                        });
                     }
                 }
             }
@@ -173,6 +230,7 @@ class BaseSyncWorker {
                 ${this.esc(l.productName)}, ${this.esc(l.imgUrl)}, ${this.esc(l.size)}, 
                 ${l.currentPrice || 'NULL'}, ${l.currentStock ?? 'NULL'}, ${l.cfb1 ? 1 : 0}, 
                 ${this.esc(l.cft1)}, ${l.cfi1 ?? 'NULL'}, ${l.cfi2 ?? 'NULL'}, 
+                ${this.esc(l.platformListingIds)},
                 NOW(), NOW()
             )`).join(',');
 
@@ -180,13 +238,16 @@ class BaseSyncWorker {
                 INSERT INTO listings (
                     id, platform_id, product_sku, variant_id, product_name, img_url, size, 
                     current_price, current_stock, cfb_1, cft_1, cfi_1, cfi_2, 
+                    platform_listing_ids,
                     last_event_at, updated_at
                 ) VALUES ${values}
                 ON DUPLICATE KEY UPDATE
                     current_price = VALUES(current_price),
                     current_stock = VALUES(current_stock),
                     cfb_1 = VALUES(cfb_1),
+                    cfi_1 = VALUES(cfi_1),
                     img_url = VALUES(img_url),
+                    platform_listing_ids = VALUES(platform_listing_ids),
                     last_event_at = NOW(),
                     updated_at = NOW()
             `;
@@ -199,6 +260,45 @@ class BaseSyncWorker {
                 const priceValues = priceChanges.map(p => `(${p.listingId}, ${p.price}, NOW())`).join(',');
                 await pool.query(`INSERT INTO price_history (listing_id, price, recorded_at) VALUES ${priceValues}`);
                 console.log(`  [History] Logged ${priceChanges.length} price changes`);
+
+                // Send Discord notifications for price changes (existing items only)
+                try {
+                    // Filter to only real changes (items that existed before)
+                    const realChanges = [];
+                    for (const pc of priceChanges) {
+                        const old = existingMap.get(String(pc.listingId));
+                        if (old && old.current_price) {
+                            const oldPrice = parseFloat(old.current_price);
+                            if (oldPrice !== pc.price) {
+                                // Get product info from chunk
+                                const item = chunk.find(c => c.id === pc.listingId);
+                                if (item) {
+                                    realChanges.push({
+                                        listingId: pc.listingId,
+                                        productName: item.productName,
+                                        productSku: item.productSku,
+                                        size: item.size,
+                                        oldPrice: oldPrice,
+                                        newPrice: pc.price
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    // Send individual notifications for up to 5 changes
+                    const toNotify = realChanges.slice(0, 5);
+                    for (const change of toNotify) {
+                        await discord.notifyPriceChange(change);
+                    }
+
+                    // If more than 5, send a summary
+                    if (realChanges.length > 5) {
+                        await discord.notifyPriceChangesSummary(realChanges);
+                    }
+                } catch (discordErr) {
+                    console.error('  [Discord] Failed to send price notifications:', discordErr.message);
+                }
             }
 
             // Log inventory history
@@ -206,6 +306,21 @@ class BaseSyncWorker {
                 const stockValues = stockChanges.map(s => `(${s.listingId}, ${s.stock}, '${s.changeType}', NOW())`).join(',');
                 await pool.query(`INSERT INTO inventory_history (listing_id, stock, change_type, recorded_at) VALUES ${stockValues}`);
                 console.log(`  [History] Logged ${stockChanges.length} stock changes`);
+            }
+
+            // Log custom field history (cfb_1 and cfi_1 changes)
+            if (customFieldChanges.length > 0) {
+                const cfValues = customFieldChanges.map(cf => {
+                    const oldVal = cf.oldValue === null ? 'NULL' : `'${cf.oldValue}'`;
+                    return `(${cf.listingId}, '${cf.fieldName}', '${cf.fieldType}', ${oldVal}, '${cf.newValue}', ${cf.isBooleanToggle ? 1 : 0}, NOW())`;
+                }).join(',');
+                await pool.query(`INSERT INTO custom_field_history (listing_id, field_name, field_type, old_value, new_value, is_boolean_toggle, recorded_at) VALUES ${cfValues}`);
+
+                // Count by field type for logging
+                const cfb1Count = customFieldChanges.filter(c => c.fieldName === 'cfb_1' && c.oldValue !== null).length;
+                const cfi1Count = customFieldChanges.filter(c => c.fieldName === 'cfi_1' && c.oldValue !== null).length;
+                if (cfb1Count > 0) console.log(`  [History] Logged ${cfb1Count} isLowest (cfb_1) changes`);
+                if (cfi1Count > 0) console.log(`  [History] Logged ${cfi1Count} payout (cfi_1) changes`);
             }
         }
         return { affected: totalAffected };
