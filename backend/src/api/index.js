@@ -25,8 +25,8 @@ app.use('/api/logs', logsRouter);
 app.get('/health', (req, res) => res.send('OK'));
 
 function startServer(port) {
-    app.listen(port, () => {
-        console.log(`[API] Server running on http://localhost:${port}`);
+    app.listen(port, '0.0.0.0', () => {
+        console.log(`[API] Server running on http://0.0.0.0:${port}`);
     });
 }
 
