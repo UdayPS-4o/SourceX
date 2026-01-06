@@ -277,7 +277,7 @@ export function ProductDetail() {
             </button>
 
             {/* Product Header */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 p-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 p-4 md:p-6">
                 <div className="flex flex-col md:flex-row gap-6 md:gap-8">
                     {/* Product Image */}
                     <div className="relative shrink-0 w-full md:w-auto flex justify-center md:block">
@@ -488,7 +488,7 @@ export function ProductDetail() {
                                             Auto-undercuts by ₹1 every 5 min until stop-loss is reached.
                                         </p>
 
-                                        <div className="flex items-center gap-3 bg-white/60 rounded-lg px-3 py-2 border border-purple-100">
+                                        <div className="flex items-center gap-3 bg-white/60 rounded-lg px-3 py-2 border border-purple-100 flex-wrap">
                                             <div className="flex items-center gap-2 flex-1">
                                                 <span className="text-xs font-bold text-purple-700 whitespace-nowrap">Stop-Loss:</span>
                                                 <div className="relative flex-1 max-w-[100px]">
@@ -522,7 +522,7 @@ export function ProductDetail() {
                 {/* Charts Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                     {/* Price History Chart */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 md:p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                                 <TrendingUp className="w-5 h-5 text-blue-500" />
@@ -576,7 +576,7 @@ export function ProductDetail() {
                     </div>
 
                     {/* Inventory History Chart */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 md:p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                                 <Package className="w-5 h-5 text-purple-500" />

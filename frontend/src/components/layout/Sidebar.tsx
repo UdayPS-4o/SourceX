@@ -10,11 +10,16 @@ const navItems = [
     { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+    className?: string;
+    onClose?: () => void;
+}
+
+export function Sidebar({ className, onClose }: SidebarProps) {
     const location = useLocation();
 
     return (
-        <div className="w-64 h-screen bg-white border-r border-gray-200 flex flex-col">
+        <div className={clsx("w-64 h-screen bg-white border-r border-gray-200 flex flex-col", className)}>
             <div className="h-16 flex items-center px-6 border-b border-gray-200">
                 <span className="text-xl font-bold text-blue-600">SourceX Bot</span>
             </div>
@@ -26,6 +31,7 @@ export function Sidebar() {
                         <Link
                             key={item.path}
                             to={item.path}
+                            onClick={onClose}
                             className={clsx(
                                 "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                                 isActive
