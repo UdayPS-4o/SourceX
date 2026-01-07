@@ -230,6 +230,15 @@ export function LogsPage() {
                             </div>
                         )}
 
+                        {nextUndercut && (
+                            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 border border-gray-700/50">
+                                <span className="text-xs text-cyan-400 font-mono">⌛ Next Run:</span>
+                                <span className="text-xs text-gray-200 font-mono font-medium min-w-[5rem]">
+                                    {nextUndercut}
+                                </span>
+                            </div>
+                        )}
+
 
 
                         {/* Connection Status */}
