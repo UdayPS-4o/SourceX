@@ -29,10 +29,16 @@ if (require.main === module) {
 
     (async () => {
         try {
-            // Check DB first
+            // Check DB first with retry to prevent PM2 restart loops
             console.log('[Backend] Checking database connection...');
-            const dbOk = await testConnection();
-            if (!dbOk) throw new Error('Database connection failed');
+            let dbOk = false;
+            while (!dbOk) {
+                dbOk = await testConnection();
+                if (!dbOk) {
+                    console.error('[Backend] Database connection failed. Retrying in 60s...');
+                    await new Promise(resolve => setTimeout(resolve, 60000));
+                }
+            }
 
             switch (command) {
                 case 'server':
