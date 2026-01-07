@@ -8,6 +8,7 @@ const { db, pool } = require('../../db');
 const { listings, platforms } = require('../../db/schema');
 const { count, eq, sql, desc, inArray } = require('drizzle-orm');
 const discord = require('../../services/discord');
+const { AutoUndercutJob } = require('../../workers/jobs/auto-undercut.job');
 
 const router = Router();
 
@@ -25,8 +26,16 @@ router.get('/', async (req, res) => {
         const params = [];
 
         if (search.trim()) {
-            whereClause += ` AND (l.product_name LIKE ? OR l.product_sku LIKE ?)`;
-            params.push(`%${search}%`, `%${search}%`);
+            // Check if search term is numeric (potential listing ID)
+            const isNumeric = /^\d+$/.test(search.trim());
+            if (isNumeric) {
+                // Search by ID (exact match) OR by name/SKU (partial match)
+                whereClause += ` AND (l.id = ? OR l.product_name LIKE ? OR l.product_sku LIKE ?)`;
+                params.push(search.trim(), `%${search}%`, `%${search}%`);
+            } else {
+                whereClause += ` AND (l.product_name LIKE ? OR l.product_sku LIKE ?)`;
+                params.push(`%${search}%`, `%${search}%`);
+            }
         }
 
         if (status === 'lowest') {
@@ -271,6 +280,13 @@ router.patch('/:id/payout', async (req, res) => {
                 console.error('[Listings] Discord notification failed:', discordErr.message);
             }
 
+            // Clear error notifications (reset spam prevention timer) since manual action was taken
+            try {
+                await AutoUndercutJob.clearErrorNotifications(listingId);
+            } catch (clearErr) {
+                console.error('[Listings] Failed to clear error notifications:', clearErr.message);
+            }
+
             res.json({
                 success: true,
                 updatedCount: updateResult.updatedCount,
@@ -333,6 +349,13 @@ router.patch('/:id/auto-undercut', async (req, res) => {
         );
 
         console.log(`[Listings] Auto-undercut updated for ${listingId}: enabled=${enabled}, stopLoss=${stopLossPrice}`);
+
+        // Clear error notifications (reset spam prevention timer) since settings changed
+        try {
+            await AutoUndercutJob.clearErrorNotifications(listingId);
+        } catch (clearErr) {
+            console.error('[Listings] Failed to clear error notifications:', clearErr.message);
+        }
 
         res.json({
             success: true,

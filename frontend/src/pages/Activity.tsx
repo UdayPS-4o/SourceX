@@ -19,12 +19,18 @@ export function ActivityPage() {
     const [sortDir, setSortDir] = useState<SortDir>('desc');
     const navigate = useNavigate();
 
+    // Map event filter to API types
+    const typeFilterParam = useMemo(() => {
+        if (eventFilter === 'all') return 'price,inventory,payout,custom';
+        return eventFilter; // 'price', 'inventory', 'isLowest', 'payout' match API types
+    }, [eventFilter]);
+
     const { data: logs, isLoading } = useQuery({
-        queryKey: ['logs', limit],
-        queryFn: () => getLogs(limit)
+        queryKey: ['logs', limit, typeFilterParam],
+        queryFn: () => getLogs(limit, typeFilterParam)
     });
 
-    // Client-side filtering and sorting
+    // Client-side filtering (Search only now) and sorting
     const filteredLogs = useMemo(() => {
         if (!logs) return [];
 
@@ -38,20 +44,6 @@ export function ActivityPage() {
                 log.product_sku?.toLowerCase().includes(q) ||
                 log.platform_name?.toLowerCase().includes(q)
             );
-        }
-
-        // Event type filter
-        if (eventFilter === 'all') {
-            // Hide isLowest changes by default as per user request
-            items = items.filter(log => log.type !== 'isLowest');
-        } else if (eventFilter === 'price') {
-            items = items.filter(log => log.type === 'price');
-        } else if (eventFilter === 'inventory') {
-            items = items.filter(log => log.type === 'inventory');
-        } else if (eventFilter === 'isLowest') {
-            items = items.filter(log => log.type === 'isLowest');
-        } else if (eventFilter === 'payout') {
-            items = items.filter(log => log.type === 'payout');
         }
 
         // Sorting
@@ -75,7 +67,7 @@ export function ActivityPage() {
         });
 
         return items;
-    }, [logs, search, eventFilter, sortKey, sortDir]);
+    }, [logs, search, sortKey, sortDir]);
 
     const handleSort = (key: SortKey) => {
         if (sortKey === key) {

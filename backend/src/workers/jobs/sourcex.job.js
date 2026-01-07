@@ -16,20 +16,14 @@ class SourceXSyncJob extends BaseSyncWorker {
         // Dynamic import of the existing scraper logic
         const scraperPath = path.resolve(__dirname, '../../../../scrapers/sourcex');
         const scraper = require(scraperPath);
+        const { logMonitor } = require('../../utils/logger');
 
-        console.log('[SourceX] Fetching ALL inventory data...');
+        logMonitor('Fetching ALL inventory data...', 'info');
 
         // fetchAll() gets inventory + lowest/not-lowest status + platform IDs
         const { inventory, summary } = await scraper.fetchAll();
 
-        console.log('═══════════════════════════════════════════');
-        console.log('📊 DATA STATS');
-        console.log('═══════════════════════════════════════════');
-        console.log(`   📦 Total Inventory: ${summary.totalInventory}`);
-        console.log(`   ✅  _isLowest=true:  ${summary.lowestCount}`);
-        console.log(`   ❌  _isLowest=false: ${summary.notLowestCount}`);
-        console.log(`   ❓  _isLowest=undef: ${summary.unknownCount}`);
-        console.log('═══════════════════════════════════════════');
+        logMonitor(`Inventory stats: Total=${summary.totalInventory}, Lowest=${summary.lowestCount}, NotLowest=${summary.notLowestCount}, Unknown=${summary.unknownCount}`, 'info');
 
         return inventory;
     }

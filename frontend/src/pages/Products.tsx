@@ -201,7 +201,7 @@ export function Products() {
                 onRowClick={(item) => navigate(`/products/${item.id}`)}
                 search={search}
                 onSearchChange={setSearch}
-                searchPlaceholder="Search products by name or SKU..."
+                searchPlaceholder="Search by name, SKU, or listing ID..."
                 pagination={{
                     currentPage: page,
                     totalPages: totalPages,

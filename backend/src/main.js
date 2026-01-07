@@ -49,8 +49,14 @@ if (require.main === module) {
                     break;
 
                 case 'monitor':
-                    console.log('[Monitor] Starting continuous sync (Target: Every 60s)...');
-                    console.log('[Monitor] Auto-undercut will run every 5 minutes');
+                    // Import monitor logger
+                    const { logMonitor, clearMonitorLog } = require('./utils/logger');
+
+                    // Clear old logs on startup
+                    clearMonitorLog();
+
+                    logMonitor('Starting continuous sync (Target: Every 60s)', 'info');
+                    logMonitor('Auto-undercut will run every 5 minutes', 'info');
                     const TARGET_INTERVAL = 60000; // 1 minute
                     const AUTO_UNDERCUT_INTERVAL = 5; // Every 5 sync cycles = 5 minutes
                     let cycleCount = 0;
@@ -62,31 +68,39 @@ if (require.main === module) {
                     while (true) {
                         const start = Date.now();
                         cycleCount++;
-                        console.log(`\n[Monitor] ➤ Cycle ${cycleCount} starting at ${new Date().toLocaleTimeString()}`);
+                        logMonitor(`Cycle ${cycleCount} starting`, 'cycle');
+
+
 
                         try {
                             // 1. Run regular sync
                             const loopJob = new SourceXSyncJob();
-                            await loopJob.run();
+                            const syncResult = await loopJob.run();
+                            logMonitor(`Sync complete: ${syncResult.inserted} new, ${syncResult.updated} updated, ${syncResult.unchanged} unchanged`, 'success');
 
-                            // 2. Run auto-undercut every 5 cycles (5 minutes)
-                            if (cycleCount % AUTO_UNDERCUT_INTERVAL === 0) {
-                                console.log('\n[Monitor] 🔄 Running auto-undercut check...');
+                            // 2. Run auto-undercut at Cycle 1 (1 min), then every 5 cycles (6, 11, 16...)
+                            // (cycleCount - 1) % 5 === 0 covers 1, 6, 11...
+                            if ((cycleCount - 1) % AUTO_UNDERCUT_INTERVAL === 0) {
+                                logMonitor('Running auto-undercut check...', 'undercut');
                                 try {
                                     const undercutResult = await autoUndercutJob.run();
-                                    console.log(`[Monitor] Auto-undercut: ${undercutResult.undercut} prices updated`);
+                                    if (undercutResult.undercut > 0) {
+                                        logMonitor(`Auto-undercut: ${undercutResult.undercut} prices updated`, 'price');
+                                    } else {
+                                        logMonitor(`Auto-undercut: No price changes needed`, 'info');
+                                    }
                                 } catch (undercutErr) {
-                                    console.error('[Monitor] ❌ Auto-undercut failed:', undercutErr.message);
+                                    logMonitor(`Auto-undercut failed: ${undercutErr.message}`, 'error');
                                 }
                             }
                         } catch (err) {
-                            console.error('[Monitor] ❌ Cycle failed:', err.message);
+                            logMonitor(`Cycle failed: ${err.message}`, 'error');
                         }
 
                         const duration = Date.now() - start;
                         const waitTime = Math.max(5000, TARGET_INTERVAL - duration);
 
-                        console.log(`[Monitor] Cycle took ${(duration / 1000).toFixed(1)}s. Waiting ${(waitTime / 1000).toFixed(1)}s...`);
+                        logMonitor(`Cycle took ${(duration / 1000).toFixed(1)}s. Waiting ${(waitTime / 1000).toFixed(1)}s...`, 'info');
 
                         await new Promise(resolve => setTimeout(resolve, waitTime));
                     }

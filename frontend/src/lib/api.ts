@@ -30,8 +30,10 @@ export const getStats = async () => {
     return response.data;
 };
 
-export const getLogs = async (limit = 20) => {
-    const response = await api.get(`/dashboard/logs?limit=${limit}`);
+export const getLogs = async (limit = 20, types?: string) => {
+    let url = `/dashboard/logs?limit=${limit}`;
+    if (types) url += `&types=${types}`;
+    const response = await api.get(url);
     return response.data;
 };
 

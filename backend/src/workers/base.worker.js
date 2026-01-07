@@ -120,7 +120,7 @@ class BaseSyncWorker {
         };
     }
 
-    // Helper: Bulk Upsert (MySQL) with History Logging
+    // Helper: Bulk Upsert (MySQL) with History Logging and Change Detection
     async bulkUpsert(items) {
         if (items.length === 0) return { affected: 0 };
 
@@ -131,39 +131,73 @@ class BaseSyncWorker {
             const chunk = items.slice(i, i + chunkSize);
             const ids = chunk.map(l => l.id);
 
-            // Fetch existing listings for comparison (including cfb_1 and cfi_1)
+            // Fetch existing listings for comparison
+            // Added img_url, platform_listing_ids, cfi_2 for full comparison
             const [existing] = await pool.query(
-                `SELECT id, current_price, current_stock, cfb_1, cfi_1 FROM listings WHERE id IN (${ids.join(',')})`
+                `SELECT id, current_price, current_stock, cfb_1, cfi_1, cfi_2, img_url, platform_listing_ids 
+                 FROM listings WHERE id IN (${ids.join(',')})`
             );
             const existingMap = new Map(existing.map(e => [String(e.id), e]));
 
-            // Track changes for history
+            // Track changes
             const priceChanges = [];
             const stockChanges = [];
-            const customFieldChanges = []; // Track cfb_1 and cfi_1 changes
+            const customFieldChanges = [];
+
+            // Filter items that actually need updating
+            const itemsToUpsert = [];
 
             for (const item of chunk) {
                 const old = existingMap.get(String(item.id));
-                if (old) {
-                    // Compare price (handle decimals as strings)
+                let isDirty = false;
+
+                if (!old) {
+                    // New item
+                    isDirty = true;
+
+                    // Log initial values
+                    if (item.currentPrice) {
+                        priceChanges.push({ listingId: item.id, price: parseFloat(item.currentPrice) });
+                    }
+                    if (item.currentStock !== null && item.currentStock !== undefined) {
+                        stockChanges.push({ listingId: item.id, stock: item.currentStock, changeType: 'initial' });
+                    }
+                    // Log initial custom fields
+                    if (item.cfb1 !== null && item.cfb1 !== undefined) {
+                        customFieldChanges.push({ listingId: item.id, fieldName: 'cfb_1', fieldType: 'boolean', oldValue: null, newValue: item.cfb1 ? 'true' : 'false', isBooleanToggle: false });
+                    }
+                    if (item.cfi1 !== null && item.cfi1 !== undefined) {
+                        customFieldChanges.push({ listingId: item.id, fieldName: 'cfi_1', fieldType: 'integer', oldValue: null, newValue: String(item.cfi1), isBooleanToggle: false });
+                    }
+                } else {
+                    // Compare fields to detect changes
+
+                    // Price
                     const oldPrice = old.current_price ? parseFloat(old.current_price) : null;
                     const newPrice = item.currentPrice ? parseFloat(item.currentPrice) : null;
-                    if (oldPrice !== newPrice && newPrice !== null) {
-                        priceChanges.push({ listingId: item.id, price: newPrice });
+                    if (oldPrice !== newPrice) { // strict inequality handles nulls if logic correct, but safety:
+                        if (oldPrice !== newPrice) { // Simplified
+                            isDirty = true;
+                            if (newPrice !== null) priceChanges.push({ listingId: item.id, price: newPrice });
+                        }
                     }
 
-                    // Compare stock
+                    // Stock
                     const oldStock = old.current_stock;
                     const newStock = item.currentStock;
-                    if (oldStock !== newStock && newStock !== null) {
-                        const changeType = newStock < oldStock ? 'sold' : (newStock > oldStock ? 'restock' : 'correction');
-                        stockChanges.push({ listingId: item.id, stock: newStock, changeType });
+                    if (oldStock !== newStock) {
+                        isDirty = true;
+                        if (newStock !== null) {
+                            const changeType = newStock < oldStock ? 'sold' : (newStock > oldStock ? 'restock' : 'correction');
+                            stockChanges.push({ listingId: item.id, stock: newStock, changeType });
+                        }
                     }
 
-                    // Compare cfb_1 (isLowest) - boolean field
+                    // cfb_1 (isLowest)
                     const oldIsLowest = old.cfb_1 === 1 || old.cfb_1 === true;
                     const newIsLowest = item.cfb1 === true;
                     if (oldIsLowest !== newIsLowest) {
+                        isDirty = true;
                         customFieldChanges.push({
                             listingId: item.id,
                             fieldName: 'cfb_1',
@@ -174,141 +208,116 @@ class BaseSyncWorker {
                         });
                     }
 
-                    // Compare cfi_1 (payout) - integer field
-                    const oldPayout = old.cfi_1;
-                    const newPayout = item.cfi1;
+                    // cfi_1 (payout)
+                    // Comparison needs string norm for loose equality, or exact logic
+                    // DB likely returns number for INT. item.cfi1 is number.
+                    if (old.cfi_1 != item.cfi1) { // loose equality for null/undefined vs null
+                        isDirty = true;
+                        if (item.cfi1 !== null && item.cfi1 !== undefined) {
+                            customFieldChanges.push({
+                                listingId: item.id,
+                                fieldName: 'cfi_1',
+                                fieldType: 'integer',
+                                oldValue: old.cfi_1 !== null ? String(old.cfi_1) : null,
+                                newValue: String(item.cfi1),
+                                isBooleanToggle: false
+                            });
+                        }
+                    }
 
-                    // Normalize for comparison (handle "100" vs 100)
-                    const oldPayoutStr = (oldPayout === null || oldPayout === undefined) ? '' : String(oldPayout);
-                    const newPayoutStr = (newPayout === null || newPayout === undefined) ? '' : String(newPayout);
+                    // cfi_2 (commission)
+                    if (old.cfi_2 != item.cfi2) isDirty = true;
 
-                    if (oldPayoutStr !== newPayoutStr && newPayout !== null && newPayout !== undefined) {
-                        customFieldChanges.push({
-                            listingId: item.id,
-                            fieldName: 'cfi_1',
-                            fieldType: 'integer',
-                            oldValue: oldPayout !== null ? String(oldPayout) : null,
-                            newValue: String(newPayout),
-                            isBooleanToggle: false
-                        });
+                    // img_url
+                    if (old.img_url != item.imgUrl) isDirty = true;
+
+                    // platform_listing_ids - string comparison
+                    // Note: platformListingIds is likely a JSON string or similar.
+                    // If undefined in item, skip check? Assuming item always has latest.
+                    // If DB is null and item is null, equal.
+                    if (item.platformListingIds !== undefined && old.platform_listing_ids != item.platformListingIds) {
+                        isDirty = true;
                     }
-                } else {
-                    // New listing - log initial values
-                    if (item.currentPrice) {
-                        priceChanges.push({ listingId: item.id, price: parseFloat(item.currentPrice) });
-                    }
-                    if (item.currentStock !== null && item.currentStock !== undefined) {
-                        stockChanges.push({ listingId: item.id, stock: item.currentStock, changeType: 'initial' });
-                    }
-                    // Log initial custom field values
-                    if (item.cfb1 !== null && item.cfb1 !== undefined) {
-                        customFieldChanges.push({
-                            listingId: item.id,
-                            fieldName: 'cfb_1',
-                            fieldType: 'boolean',
-                            oldValue: null,
-                            newValue: item.cfb1 ? 'true' : 'false',
-                            isBooleanToggle: false
-                        });
-                    }
-                    if (item.cfi1 !== null && item.cfi1 !== undefined) {
-                        customFieldChanges.push({
-                            listingId: item.id,
-                            fieldName: 'cfi_1',
-                            fieldType: 'integer',
-                            oldValue: null,
-                            newValue: String(item.cfi1),
-                            isBooleanToggle: false
-                        });
-                    }
+                }
+
+                if (isDirty) {
+                    itemsToUpsert.push(item);
                 }
             }
 
-            // Perform upsert
-            const values = chunk.map(l => `(
-                ${l.id}, ${l.platformId}, ${this.esc(l.productSku)}, ${this.esc(l.variantId)}, 
-                ${this.esc(l.productName)}, ${this.esc(l.imgUrl)}, ${this.esc(l.size)}, 
-                ${l.currentPrice || 'NULL'}, ${l.currentStock ?? 'NULL'}, ${l.cfb1 ? 1 : 0}, 
-                ${this.esc(l.cft1)}, ${l.cfi1 ?? 'NULL'}, ${l.cfi2 ?? 'NULL'}, 
-                ${this.esc(l.platformListingIds)},
-                NOW(), NOW()
-            )`).join(',');
+            // Perform upsert ONLY for dirty items
+            if (itemsToUpsert.length > 0) {
+                const values = itemsToUpsert.map(l => `(
+                    ${l.id}, ${l.platformId}, ${this.esc(l.productSku)}, ${this.esc(l.variantId)}, 
+                    ${this.esc(l.productName)}, ${this.esc(l.imgUrl)}, ${this.esc(l.size)}, 
+                    ${l.currentPrice || 'NULL'}, ${l.currentStock ?? 'NULL'}, ${l.cfb1 ? 1 : 0}, 
+                    ${this.esc(l.cft1)}, ${l.cfi1 ?? 'NULL'}, ${l.cfi2 ?? 'NULL'}, 
+                    ${this.esc(l.platformListingIds)},
+                    NOW(), NOW()
+                )`).join(',');
 
-            const query = `
-                INSERT INTO listings (
-                    id, platform_id, product_sku, variant_id, product_name, img_url, size, 
-                    current_price, current_stock, cfb_1, cft_1, cfi_1, cfi_2, 
-                    platform_listing_ids,
-                    last_event_at, updated_at
-                ) VALUES ${values}
-                ON DUPLICATE KEY UPDATE
-                    current_price = VALUES(current_price),
-                    current_stock = VALUES(current_stock),
-                    cfb_1 = VALUES(cfb_1),
-                    cfi_1 = VALUES(cfi_1),
-                    img_url = VALUES(img_url),
-                    platform_listing_ids = VALUES(platform_listing_ids),
-                    last_event_at = NOW(),
-                    updated_at = NOW()
-            `;
+                const query = `
+                    INSERT INTO listings (
+                        id, platform_id, product_sku, variant_id, product_name, img_url, size, 
+                        current_price, current_stock, cfb_1, cft_1, cfi_1, cfi_2, 
+                        platform_listing_ids,
+                        last_event_at, updated_at
+                    ) VALUES ${values}
+                    ON DUPLICATE KEY UPDATE
+                        current_price = VALUES(current_price),
+                        current_stock = VALUES(current_stock),
+                        cfb_1 = VALUES(cfb_1),
+                        cfi_1 = VALUES(cfi_1),
+                        cfi_2 = VALUES(cfi_2),
+                        img_url = VALUES(img_url),
+                        platform_listing_ids = VALUES(platform_listing_ids),
+                        last_event_at = NOW(),
+                        updated_at = NOW()
+                `;
 
-            const [res] = await pool.query(query);
-            totalAffected += res.affectedRows;
+                const [res] = await pool.query(query);
+                totalAffected += res.affectedRows; // logical affected rows (2 for update, 1 for insert)
+            }
 
-            // Log price history
+            // Logs (keep existing logging logic basically same, but powered by our change tracking)
             if (priceChanges.length > 0) {
                 const priceValues = priceChanges.map(p => `(${p.listingId}, ${p.price}, NOW())`).join(',');
                 await pool.query(`INSERT INTO price_history (listing_id, price, recorded_at) VALUES ${priceValues}`);
                 console.log(`  [History] Logged ${priceChanges.length} price changes`);
 
-                // Send Discord notifications for price changes (existing items only)
-                try {
-                    // Filter to only real changes (items that existed before)
-                    const realChanges = [];
-                    for (const pc of priceChanges) {
-                        const old = existingMap.get(String(pc.listingId));
-                        if (old && old.current_price) {
-                            const oldPrice = parseFloat(old.current_price);
-                            if (oldPrice !== pc.price) {
-                                // Get product info from chunk
-                                const item = chunk.find(c => c.id === pc.listingId);
-                                if (item) {
-                                    realChanges.push({
-                                        listingId: pc.listingId,
-                                        productName: item.productName,
-                                        productSku: item.productSku,
-                                        size: item.size,
-                                        oldPrice: oldPrice,
-                                        newPrice: pc.price
-                                    });
-                                }
-                            }
-                        }
+                // Discord notification logic... (simplified here for brevity, assuming standard reuse)
+                // Filter real changes already done above in loop
+                const realChanges = [];
+                for (const pc of priceChanges) {
+                    const item = itemsToUpsert.find(c => c.id === pc.listingId) || chunk.find(c => c.id === pc.listingId); // fallback
+                    const old = existingMap.get(String(pc.listingId));
+                    if (item && old && old.current_price && parseFloat(old.current_price) !== pc.price) {
+                        realChanges.push({
+                            listingId: pc.listingId,
+                            productName: item.productName,
+                            productSku: item.productSku,
+                            size: item.size,
+                            oldPrice: parseFloat(old.current_price),
+                            newPrice: pc.price
+                        });
                     }
+                }
 
-                    // Send individual notifications for up to 5 changes
-                    const toNotify = realChanges.slice(0, 5);
-                    for (const change of toNotify) {
-                        await discord.notifyPriceChange(change);
-                    }
-
-                    // If more than 5, send a summary
-                    if (realChanges.length > 5) {
-                        await discord.notifyPriceChangesSummary(realChanges);
-                    }
-                } catch (discordErr) {
-                    console.error('  [Discord] Failed to send price notifications:', discordErr.message);
+                if (realChanges.length > 0) {
+                    try {
+                        const toNotify = realChanges.slice(0, 5);
+                        for (const change of toNotify) await discord.notifyPriceChange(change);
+                        if (realChanges.length > 5) await discord.notifyPriceChangesSummary(realChanges);
+                    } catch (err) { console.error('Discord err', err.message); }
                 }
             }
 
-            // Log inventory history
             if (stockChanges.length > 0) {
                 const stockValues = stockChanges.map(s => `(${s.listingId}, ${s.stock}, '${s.changeType}', NOW())`).join(',');
                 await pool.query(`INSERT INTO inventory_history (listing_id, stock, change_type, recorded_at) VALUES ${stockValues}`);
                 console.log(`  [History] Logged ${stockChanges.length} stock changes`);
             }
 
-            // Log custom field history (cfb_1 and cfi_1 changes)
             if (customFieldChanges.length > 0) {
                 const cfValues = customFieldChanges.map(cf => {
                     const oldVal = cf.oldValue === null ? 'NULL' : `'${cf.oldValue}'`;
@@ -316,11 +325,8 @@ class BaseSyncWorker {
                 }).join(',');
                 await pool.query(`INSERT INTO custom_field_history (listing_id, field_name, field_type, old_value, new_value, is_boolean_toggle, recorded_at) VALUES ${cfValues}`);
 
-                // Count by field type for logging
-                const cfb1Count = customFieldChanges.filter(c => c.fieldName === 'cfb_1' && c.oldValue !== null).length;
-                const cfi1Count = customFieldChanges.filter(c => c.fieldName === 'cfi_1' && c.oldValue !== null).length;
+                const cfb1Count = customFieldChanges.filter(c => c.fieldName === 'cfb_1').length;
                 if (cfb1Count > 0) console.log(`  [History] Logged ${cfb1Count} isLowest (cfb_1) changes`);
-                if (cfi1Count > 0) console.log(`  [History] Logged ${cfi1Count} payout (cfi_1) changes`);
             }
         }
         return { affected: totalAffected };

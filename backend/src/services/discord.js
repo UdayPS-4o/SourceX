@@ -5,16 +5,21 @@
 
 const WEBHOOKS = {
     // Price changes incoming (detected from sync)
-    PRICE_CHANGES: 'https://discord.com/api/webhooks/1457564612596596787/0gOi52lhggjlslKZ3ILzXhNkAMmzPuUUHWwdMWpyJBVt0ua6GkLiARemZwlh8z-xUMCa',
+    PRICE_CHANGES: process.env.DISCORD_WEBHOOK_PRICE_CHANGES,
 
     // Mutations (payout writes by our system)
-    MUTATIONS: 'https://discord.com/api/webhooks/1457564760223780875/touJpDIg6fThCCIHE_xQ6u2otNZqQTl8j9-GFyEacIoTs_uPg9_BqH80ZqF9ezXA0Umq'
+    MUTATIONS: process.env.DISCORD_WEBHOOK_MUTATIONS
 };
 
 /**
  * Send a message to Discord webhook
  */
 async function sendWebhook(webhookUrl, payload) {
+    if (!webhookUrl) {
+        // Silently skip if no webhook URL is configured
+        return true;
+    }
+
     try {
         const response = await fetch(webhookUrl, {
             method: 'POST',
@@ -175,6 +180,90 @@ async function notifyMutation(data) {
 }
 
 /**
+ * Send auto-undercut error notification
+ * @param {Object} data - Error data
+ */
+async function notifyAutoUndercutError(data) {
+    const {
+        productName,
+        productSku,
+        listingId,
+        errorType,
+        errorMessage,
+        size,
+        currentPayout,
+        attemptedPayout
+    } = data;
+
+    const FRONTEND_BASE_URL = process.env.FRONTEND_URL || 'https://sourcex.udayps.com';
+    const productLink = `${FRONTEND_BASE_URL}/products/${listingId}`;
+
+    const embed = {
+        title: errorType === 'stop_loss' ? '🛑 Stop Loss Triggered' : '❌ Auto-Undercut Failed',
+        color: errorType === 'stop_loss' ? 0xFFA500 : 0xFF0000, // Orange for stop loss, Red for error
+        fields: [
+            {
+                name: '📦 Product',
+                value: productName?.substring(0, 100) || 'Unknown',
+                inline: false
+            },
+            {
+                name: '🏷️ SKU',
+                value: `\`${productSku || 'N/A'}\``,
+                inline: true
+            },
+            {
+                name: '📐 Size',
+                value: size || 'N/A',
+                inline: true
+            },
+            {
+                name: '🔗 ID',
+                value: `[#${listingId}](${productLink})`,
+                inline: true
+            }
+        ],
+        timestamp: new Date().toISOString(),
+        footer: {
+            text: 'Auto-Undercut System'
+        }
+    };
+
+    // Add payout info if available
+    if (currentPayout) {
+        embed.fields.push({
+            name: '💸 Current Payout',
+            value: `₹${currentPayout.toLocaleString()}`,
+            inline: true
+        });
+    }
+
+    if (attemptedPayout) {
+        embed.fields.push({
+            name: '🎯 Attempted Payout',
+            value: `₹${attemptedPayout.toLocaleString()}`,
+            inline: true
+        });
+    }
+
+    // Add error message
+    embed.fields.push({
+        name: '⚠️ Error',
+        value: errorMessage?.substring(0, 500) || 'Unknown error',
+        inline: false
+    });
+
+    // Add action link
+    embed.fields.push({
+        name: '🔗 View Product',
+        value: `[Open in SourceX Bot](${productLink})`,
+        inline: false
+    });
+
+    return sendWebhook(WEBHOOKS.MUTATIONS, { embeds: [embed] });
+}
+
+/**
  * Send batch price changes summary
  * @param {Array} changes - Array of price changes
  */
@@ -220,6 +309,7 @@ async function notifyPriceChangesSummary(changes) {
 module.exports = {
     notifyPriceChange,
     notifyMutation,
+    notifyAutoUndercutError,
     notifyPriceChangesSummary,
     sendWebhook,
     WEBHOOKS

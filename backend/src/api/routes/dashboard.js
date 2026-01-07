@@ -40,11 +40,26 @@ router.get('/stats', async (req, res) => {
 router.get('/logs', async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 50;
+        const typesParam = req.query.types; // e.g. "price,inventory"
+
+        let typeFilter = "";
+        const params = [];
+
+        if (typesParam) {
+            const types = typesParam.split(',').map(t => t.trim());
+            if (types.length > 0) {
+                const placeholders = types.map(() => '?').join(',');
+                typeFilter = `AND type IN (${placeholders})`;
+                params.push(...types);
+            }
+        }
+
+        params.push(String(limit));
 
         const query = `
             WITH combined_logs AS (
                 SELECT 
-                    'price' as type,
+                    CAST('price' AS CHAR(20)) as type,
                     p.listing_id,
                     p.price as value,
                     LAG(p.price) OVER (PARTITION BY p.listing_id ORDER BY p.recorded_at) as old_value,
@@ -62,7 +77,7 @@ router.get('/logs', async (req, res) => {
                 UNION ALL
                 
                 SELECT 
-                    'inventory' as type,
+                    CAST('inventory' AS CHAR(20)) as type,
                     i.listing_id,
                     i.stock as value,
                     LAG(i.stock) OVER (PARTITION BY i.listing_id ORDER BY i.recorded_at) as old_value,
@@ -80,11 +95,11 @@ router.get('/logs', async (req, res) => {
                 UNION ALL
                 
                 SELECT 
-                    CASE 
+                    CAST(CASE 
                         WHEN cf.field_name = 'cfb_1' THEN 'isLowest'
                         WHEN cf.field_name = 'cfi_1' THEN 'payout'
                         ELSE 'custom'
-                    END as type,
+                    END AS CHAR(20)) as type,
                     cf.listing_id,
                     cf.new_value as value,
                     cf.old_value,
@@ -101,17 +116,18 @@ router.get('/logs', async (req, res) => {
                 WHERE cf.old_value IS NOT NULL
             )
             SELECT * FROM combined_logs
-            WHERE old_value IS NULL OR (
+            WHERE (old_value IS NULL OR (
                 CASE 
                     WHEN type IN ('price', 'inventory', 'payout') THEN CAST(old_value AS DECIMAL(20, 2)) != CAST(value AS DECIMAL(20, 2))
                     ELSE old_value != value
                 END
-            )
+            ))
+            ${typeFilter}
             ORDER BY recorded_at DESC
             LIMIT ?
         `;
 
-        const [rows] = await pool.execute(query, [String(limit)]);
+        const [rows] = await pool.query(query, params);
 
         // Fix timezone discrepancy for raw SQL query (add 5.5 hours)
         const formatted = rows.map(row => ({
@@ -122,6 +138,10 @@ router.get('/logs', async (req, res) => {
         res.json(formatted);
     } catch (err) {
         console.error('[Dashboard] Error fetching logs:', err);
+        const fs = require('fs');
+        try {
+            fs.appendFileSync('logs/dashboard_error.txt', `[${new Date().toISOString()}] ${err.message}\n${err.stack}\n\n`);
+        } catch (e) { /* ignore */ }
         res.status(500).json({ error: 'Failed to fetch logs' });
     }
 });
